@@ -632,6 +632,7 @@
             setupEventListeners();
             setupAudioContext();
             updateVisualizer();
+            initSpeechSynthesis(); // 初始化語音合成
         }
         
         // Setup event listeners
@@ -646,16 +647,16 @@
             
             clearChatButton.addEventListener('click', clearChat);
             testVoiceBtn.addEventListener('click', testVoice);
-                            toggleTTSButton.addEventListener('click', toggleTTS);
+            toggleTTSButton.addEventListener('click', toggleTTS);
                 
-                // Add resize behavior for textarea
-                userInput.addEventListener('input', function() {
-                    // Reset height to auto to get correct scrollHeight
-                    this.style.height = 'auto';
-                    // Set new height based on content
-                    const newHeight = Math.min(Math.max(this.scrollHeight, 50), 150);
-                    this.style.height = newHeight + 'px';
-                });
+            // Add resize behavior for textarea
+            userInput.addEventListener('input', function() {
+                // Reset height to auto to get correct scrollHeight
+                this.style.height = 'auto';
+                // Set new height based on content
+                const newHeight = Math.min(Math.max(this.scrollHeight, 50), 150);
+                this.style.height = newHeight + 'px';
+            });
             
             speechRate.addEventListener('input', (e) => {
                 speechRateValue.value = e.target.value;
@@ -668,23 +669,45 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 256;
-                
-                // Load voices for speech synthesis
-                if (synth) {
-                    loadVoices();
-                    if (synth.onvoiceschanged !== undefined) {
-                        synth.onvoiceschanged = loadVoices;
-                    }
-                }
             } catch (e) {
                 console.error('Web Audio API is not supported in this browser');
             }
         }
         
+        // Initialize speech synthesis
+        function initSpeechSynthesis() {
+            // Check if browser supports speech synthesis
+            if (!window.speechSynthesis) {
+                console.error('Speech synthesis not supported in this browser');
+                return;
+            }
+            
+            // First load attempt
+            loadVoices();
+            
+            // Set up the event listener for voices changed
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = function() {
+                    console.log('Voices changed event triggered');
+                    loadVoices();
+                };
+            }
+            
+            // Sometimes we need to force loading voices
+            setTimeout(function() {
+                if (window.speechSynthesis.getVoices().length === 0) {
+                    console.log('Trying to force load voices');
+                    speechSynthesis.cancel(); // This can trigger voices to load in some browsers
+                    loadVoices();
+                }
+            }, 1000);
+        }
+        
         // Load available voices
         function loadVoices() {
-            voices = synth.getVoices();
+            const voices = window.speechSynthesis.getVoices();
             if (voices.length > 0) {
+                console.log(`已載入 ${voices.length} 個語音`);
                 // Update voice selector
                 voiceSelector.innerHTML = '';
                 
@@ -696,12 +719,16 @@
                 );
                 
                 if (chineseVoices.length === 0) {
+                    console.log('找不到中文語音，使用所有可用語音');
                     chineseVoices = voices;
+                } else {
+                    console.log(`找到 ${chineseVoices.length} 個中文語音`);
                 }
                 
                 chineseVoices.forEach(voice => {
                     const option = document.createElement('option');
                     option.textContent = `${voice.name} (${voice.lang})`;
+                    option.value = voice.name;
                     option.setAttribute('data-voice-uri', voice.voiceURI);
                     option.setAttribute('data-lang', voice.lang);
                     voiceSelector.appendChild(option);
@@ -709,21 +736,30 @@
                 
                 // If no voices found, add the mock options back
                 if (voiceSelector.options.length === 0) {
-                    const mockOptions = [
-                        {name: '佳佳 (女聲)', value: 'zh-TW-JiaJiaNeural'},
-                        {name: '雲哲 (男聲)', value: 'zh-TW-YunJheNeural'},
-                        {name: '曉辰 (女聲)', value: 'zh-TW-HsiaoChenNeural'},
-                        {name: '曉雨 (女聲)', value: 'zh-TW-HsiaoYuNeural'}
-                    ];
-                    
-                    mockOptions.forEach(opt => {
-                        const option = document.createElement('option');
-                        option.textContent = opt.name;
-                        option.value = opt.value;
-                        voiceSelector.appendChild(option);
-                    });
+                    console.log('添加模擬語音選項');
+                    addMockVoiceOptions();
                 }
+            } else {
+                console.log('尚未載入語音，使用模擬選項');
+                addMockVoiceOptions();
             }
+        }
+        
+        // Add mock voice options
+        function addMockVoiceOptions() {
+            const mockOptions = [
+                {name: '佳佳 (女聲)', value: 'zh-TW-JiaJiaNeural'},
+                {name: '雲哲 (男聲)', value: 'zh-TW-YunJheNeural'},
+                {name: '曉辰 (女聲)', value: 'zh-TW-HsiaoChenNeural'},
+                {name: '曉雨 (女聲)', value: 'zh-TW-HsiaoYuNeural'}
+            ];
+            
+            mockOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.textContent = opt.name;
+                option.value = opt.value;
+                voiceSelector.appendChild(option);
+            });
         }
         
         // Handle sending message
@@ -811,6 +847,12 @@
         
         // Speak text using Web Speech API
         function speakText(text) {
+            if (!window.speechSynthesis) {
+                console.error('Speech synthesis not supported in this browser');
+                alert('您的瀏覽器不支援語音合成功能，請嘗試使用 Chrome 或 Edge 瀏覽器。');
+                return;
+            }
+            
             if (isSpeaking) {
                 window.speechSynthesis.cancel();
             }
@@ -819,48 +861,109 @@
             updateVisualizerState(true);
             
             const utterance = new SpeechSynthesisUtterance(text);
+            
             // Use the selected voice options
             utterance.lang = 'zh-TW';
             utterance.rate = parseFloat(speechRate.value);
             utterance.volume = parseFloat(volumeControl.value);
             
-            // Try to set a voice with Taiwanese accent
-            window.speechSynthesis.onvoiceschanged = () => {
-                const voices = window.speechSynthesis.getVoices();
-                // Try to find a Chinese (Taiwan) voice
-                const twVoice = voices.find(voice => 
-                    voice.lang.includes('zh-TW') || 
-                    voice.lang.includes('zh_TW') || 
-                    voice.name.includes('Taiwan') ||
-                    voice.name.includes('Chinese')
-                );
-                if (twVoice) utterance.voice = twVoice;
-            };
+            // 獲取當前所有可用語音
+            const voices = window.speechSynthesis.getVoices();
+            console.log(`嘗試設置語音，當前有 ${voices.length} 個語音可用`);
+            
+            // 嘗試根據選擇器設置語音
+            const selectedVoiceName = voiceSelector.value;
+            let selectedVoice = null;
+            
+            if (voices.length > 0) {
+                // 首先嘗試根據名稱匹配
+                selectedVoice = voices.find(voice => voice.name === selectedVoiceName);
+                
+                // 如果找不到匹配的語音，嘗試尋找台灣中文語音
+                if (!selectedVoice) {
+                    console.log('未找到匹配的語音，嘗試尋找台灣中文語音');
+                    selectedVoice = voices.find(voice => 
+                        voice.lang.includes('zh-TW') || 
+                        voice.lang.includes('zh_TW') || 
+                        voice.name.includes('Taiwan')
+                    );
+                }
+                
+                // 如果還是找不到，嘗試任何中文語音
+                if (!selectedVoice) {
+                    console.log('未找到台灣中文語音，嘗試尋找任何中文語音');
+                    selectedVoice = voices.find(voice => 
+                        voice.lang.includes('zh') || 
+                        voice.name.includes('Chinese')
+                    );
+                }
+                
+                // 如果仍然找不到，使用第一個可用的語音
+                if (!selectedVoice && voices.length > 0) {
+                    console.log('未找到中文語音，使用第一個可用的語音');
+                    selectedVoice = voices[0];
+                }
+                
+                if (selectedVoice) {
+                    console.log(`使用語音: ${selectedVoice.name} (${selectedVoice.lang})`);
+                    utterance.voice = selectedVoice;
+                }
+            } else {
+                console.log('沒有可用的語音，使用瀏覽器默認語音');
+            }
             
             // Handle speech events
             utterance.onstart = () => {
+                console.log('語音播放開始');
                 isSpeaking = true;
                 updateVisualizerState(true);
             };
             
             utterance.onend = () => {
+                console.log('語音播放結束');
                 isSpeaking = false;
                 updateVisualizerState(false);
             };
             
             utterance.onerror = (event) => {
-                console.error('SpeechSynthesis Error', event);
+                console.error('語音合成錯誤', event);
                 isSpeaking = false;
                 updateVisualizerState(false);
+                alert('語音播放失敗，請嘗試使用Chrome或Edge瀏覽器');  
             };
             
-            window.speechSynthesis.speak(utterance);
+            try {
+                window.speechSynthesis.speak(utterance);
+            } catch (error) {
+                console.error('語音合成發生例外:', error);
+                isSpeaking = false;
+                updateVisualizerState(false);
+            }
         }
         
         // Test voice
         function testVoice() {
             const testText = "您好，這是一個台灣腔的語音測試。我是 AURO AI 助手，很高興為您服務。";
-            speakText(testText);
+            
+            // 檢查語音合成是否可用
+            if (!window.speechSynthesis) {
+                alert('您的瀏覽器不支援語音合成功能，請嘗試使用 Chrome 或 Edge 瀏覽器。');
+                return;
+            }
+            
+            // 如果語音列表為空，嘗試強制載入
+            if (window.speechSynthesis.getVoices().length === 0) {
+                console.log('語音測試：語音列表為空，嘗試強制載入');
+                window.speechSynthesis.cancel(); // 嘗試觸發語音載入
+                
+                // 延遲一下再測試語音，給瀏覽器時間載入語音
+                setTimeout(() => {
+                    console.log('延遲後再次嘗試播放測試語音');
+                    speakText(testText);
+                }, 500);
+            } else {
+                speakText(testText);
+            }
         }
         
         // Toggle auto TTS
@@ -929,5 +1032,47 @@
             requestAnimationFrame(updateVisualizer);
         }
         
+        // 調試函數 - 顯示可用語音
+        function debugVoice() {
+            const voices = window.speechSynthesis.getVoices();
+            let voiceInfo = `檢測到 ${voices.length} 個語音\n`;
+            
+            if (voices.length > 0) {
+                voiceInfo += `第一個語音: ${voices[0].name} (${voices[0].lang})\n`;
+                
+                const zhVoices = voices.filter(v => v.lang.includes('zh'));
+                voiceInfo += `中文語音數量: ${zhVoices.length}\n`;
+                
+                if (zhVoices.length > 0) {
+                    voiceInfo += `可用中文語音: ${zhVoices.map(v => v.name).join(', ')}`;
+                }
+            }
+            
+            alert(voiceInfo);
+            
+            // 嘗試基本語音測試
+            try {
+                const msg = new SpeechSynthesisUtterance('測試語音');
+                msg.lang = 'zh-TW';
+                window.speechSynthesis.speak(msg);
+                alert('測試語音已啟動，請注意是否有聲音。');
+            } catch (e) {
+                alert('語音合成錯誤: ' + e.message);
+            }
+        }
+        
         // Initialize on page load
-        window.addEventListener('DOMContentLoaded', init);
+        window.addEventListener('DOMContentLoaded', function() {
+            init();
+            
+            // 添加調試按鈕
+            const debugButton = document.createElement('button');
+            debugButton.classList.add('secondary');
+            debugButton.style.position = 'fixed';
+            debugButton.style.bottom = '10px';
+            debugButton.style.right = '10px';
+            debugButton.style.zIndex = '1000';
+            debugButton.textContent = '語音診斷';
+            debugButton.addEventListener('click', debugVoice);
+            document.body.appendChild(debugButton);
+        });
