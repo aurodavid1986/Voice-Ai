@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURO AI - 台灣語音對話助手</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #818cf8;
+            --dark-color: #1e1b4b;
+            --light-color: #f3f4f6;
+            --accent-color: #10b981;
+            --danger-color: #ef4444;
+            --text-color: #1f2937;
+            --bg-color: #f9fafb;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+        
+        .logo svg {
+            width: 32px;
+            height: 32px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: var(--secondary-color);
+        }
+        
+        button.secondary {
+            background: transparent;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+        }
+        
+        button.secondary:hover {
+            background: rgba(79, 70, 229, 0.1);
+        }
+        
+        .danger {
+            background: var(--danger-color);
+        }
+        
+        .danger:hover {
+            background: #f87171;
+        }
+        
+        .main {
+            display: flex;
+            gap: 1rem;
+            flex: 1;
+        }
+        
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            background: white;
+        }
+        
+        .chat-header {
+            padding: 1rem;
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+        
+        .messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .message {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            animation: fadeIn 0.3s;
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user {
+            align-self: flex-end;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 0.5rem 0.5rem 0 0.5rem;
+        }
+        
+        .bot {
+            align-self: flex-start;
+            background: var(--light-color);
+            border-radius: 0.5rem 0.5rem 0.5rem 0;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 0.3rem;
+            padding: 0.5rem 1rem;
+            background: var(--light-color);
+            border-radius: 0.5rem;
+            align-self: flex-start;
+            width: max-content;
+        }
+        
+        .typing-indicator span {
+            width: 0.5rem;
+            height: 0.5rem;
+            background: var(--text-color);
+            border-radius: 50%;
+            display: inline-block;
+            opacity: 0.6;
+        }
+        
+        .typing-indicator span:nth-child(1) {
+            animation: typing 1s infinite 0.1s;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation: typing 1s infinite 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation: typing 1s infinite 0.3s;
+        }
+        
+        @keyframes typing {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid rgba(0,0,0,0.1);
+            background: white;
+        }
+        
+        .input-container textarea {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid rgba(0,0,0,0.2);
+            resize: none;
+            height: 50px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .input-container textarea:focus {
+            border-color: var(--primary-color);
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 1rem;
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .sidebar-content {
+            padding: 1rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .settings-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .settings-section h3 {
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+        
+        .settings-option {
+            margin-bottom: 1rem;
+        }
+        
+        .settings-option label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        .settings-option select, 
+        .settings-option input[type="range"] {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            border: 1px solid rgba(0,0,0,0.2);
+            background: white;
+        }
+        
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .volume-control input {
+            flex: 1;
+        }
+        
+        .voice-sample {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: var(--light-color);
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
+        }
+        
+        .model-info {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(79, 70, 229, 0.1);
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        .model-info h3 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .model-info p {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        
+        .audio-controls {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .audio-visualizer {
+            height: 60px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 0.25rem;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .audio-bars {
+            display: flex;
+            align-items: flex-end;
+            height: 40px;
+            width: 100%;
+            padding: 0 1rem;
+            gap: 3px;
+        }
+        
+        .audio-bar {
+            flex: 1;
+            background: var(--primary-color);
+            border-radius: 1px;
+            height: 5px;
+            max-height: 40px;
+            transition: height 0.1s ease;
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .main {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                margin-bottom: 1rem;
+                order: -1;
+            }
+        }
+
+        /* Sci-fi tech appearance enhancements */
+        .chat-container, .sidebar {
+            border: 1px solid rgba(79, 70, 229, 0.3);
+            background: rgba(255, 255, 255, 0.95);
+        }
+        
+        .chat-header, .sidebar-header {
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+        
+        body {
+            background: radial-gradient(circle at top right, rgba(79, 70, 229, 0.1), transparent 70%),
+                        radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent 70%);
+        }
+        
+        .tech-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(79, 70, 229, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(79, 70, 229, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            z-index: -1;
+            pointer-events: none;
+        }
+        
+        .glow {
+            filter: drop-shadow(0 0 8px rgba(79, 70, 229, 0.5));
+        }
+    </style>
+</head>
+<body>
+    <div class="tech-pattern"></div>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 18h.01"></path>
+                    <path d="M7 3h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+                    <path d="M10 10a2 2 0 1 1 4 0v8"></path>
+                </svg>
+                <span>AURO AI</span>
+            </div>
+            <div class="controls">
+                <button class="secondary" id="clearChat">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    清除對話
+                </button>
+                <button>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polygon points="10 8 16 12 10 16 10 8"></polygon>
+                    </svg>
+                    開始對話
+                </button>
+            </div>
+        </header>
+        
+        <div class="main">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div>AURO AI 助手</div>
+                    <div class="status">
+                        <span class="status-indicator"></span>
+                        <span>在線</span>
+                    </div>
+                </div>
+                <div class="messages" id="messagesContainer">
+                    <div class="message bot">
+                        您好！我是 AURO AI 助手。我可以幫您解答問題，進行對話以及將文字轉為台灣腔調的語音。請問需要我幫您什麼忙呢？
+                    </div>
+                </div>
+                <div class="input-container">
+                    <textarea id="userInput" placeholder="輸入訊息..." rows="1"></textarea>
+                    <button id="sendButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    語音設定
+                </div>
+                <div class="sidebar-content">
+                    <div class="settings-section">
+                        <h3>語音選項</h3>
+                        <div class="settings-option">
+                            <label for="voiceSelector">台灣語音選擇</label>
+                            <select id="voiceSelector">
+                                <option value="zh-TW-JiaJiaNeural">佳佳 (女聲)</option>
+                                <option value="zh-TW-YunJheNeural">雲哲 (男聲)</option>
+                                <option value="zh-TW-HsiaoChenNeural">曉辰 (女聲)</option>
+                                <option value="zh-TW-HsiaoYuNeural">曉雨 (女聲)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="settings-option">
+                            <label for="speechRate">語速</label>
+                            <input type="range" id="speechRate" min="0.5" max="2" step="0.1" value="1">
+                            <div class="volume-control">
+                                <span>慢</span>
+                                <input type="range" id="speechRateValue" min="0.5" max="2" step="0.1" value="1" disabled>
+                                <span>快</span>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-option">
+                            <label for="volumeControl">音量</label>
+                            <div class="volume-control">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                                </svg>
+                                <input type="range" id="volumeControl" min="0" max="1" step="0.1" value="0.8">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <div class="voice-sample">
+                            <span>語音範例</span>
+                            <button class="secondary" id="testVoiceBtn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="audio-controls">
+                        <div class="audio-visualizer">
+                            <div class="audio-bars" id="audioVisualizer">
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                                <div class="audio-bar"></div>
+                            </div>
+                        </div>
+                        <button id="toggleTTS">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                            </svg>
+                            自動播放語音
+                        </button>
+                    </div>
+                    
+                    <div class="model-info">
+                        <h3>模型資訊</h3>
+                        <p>當前模型：AURO-7B-V2</p>
+                        <p>支援功能：自然語言對話、文字轉語音（台灣腔）</p>
+                        <p>該模型基於原版 AURO 專案 (AURO-7B-V2)，針對台灣腔進行特別調校優化。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // DOM Elements
+        const messagesContainer = document.getElementById('messagesContainer');
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        const clearChatButton = document.getElementById('clearChat');
+        const testVoiceBtn = document.getElementById('testVoiceBtn');
+        const voiceSelector = document.getElementById('voiceSelector');
+        const speechRate = document.getElementById('speechRate');
+        const speechRateValue = document.getElementById('speechRateValue');
+        const volumeControl = document.getElementById('volumeControl');
+        const toggleTTSButton = document.getElementById('toggleTTS');
+        const audioVisualizer = document.getElementById('audioVisualizer');
+        
+        // State
+        let isTyping = false;
+        let autoPlayTTS = false;
+        let isSpeaking = false;
+        let audioContext = null;
+        let analyser = null;
+        let audioSource = null;
+        let animationFrameId = null;
+        let synth = window.speechSynthesis;
+        
+        // Sample responses for demo
+        const sampleResponses = [
+            "您好！很高興能夠與您交談。有什麼我可以幫您的嗎？",
+            "這是一個基於 AURO 專案的演示網站，我可以與您進行對話並且提供台灣腔的語音回應。",
+            "沒問題，我可以幫您解答這個問題。讓我思考一下...",
+            "根據我的理解，您想知道的是關於人工智能的應用場景，對吧？人工智能已經廣泛應用於醫療、金融、教育等多個領域。在醫療方面，AI可以協助醫生進行疾病診斷；在金融領域，AI可以進行風險評估和詐騙檢測；在教育領域，AI可以提供個性化學習體驗。",
+            "很抱歉，我沒有完全理解您的問題。您能再詳細說明一下嗎？",
+            "這個問題很有趣！讓我從不同角度來分析一下...",
+            "台灣的科技發展非常迅速，尤其在半導體、資通訊和生物科技領域都有很大的成就。台積電是全球領先的晶片代工廠，而且台灣在資通訊產業也有許多成功的企業。",
+            "除了工作和學習，適當的休息和娛樂也很重要喔！您有什麼喜歡的休閒活動嗎？"
+        ];
+        
+        // Initialize
+        function init() {
+            setupEventListeners();
+            setupAudioContext();
+            updateVisualizer();
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            sendButton.addEventListener('click', handleSendMessage);
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                }
+            });
+            
+            clearChatButton.addEventListener('click', clearChat);
+            testVoiceBtn.addEventListener('click', testVoice);
+                            toggleTTSButton.addEventListener('click', toggleTTS);
+                
+                // Add resize behavior for textarea
+                userInput.addEventListener('input', function() {
+                    // Reset height to auto to get correct scrollHeight
+                    this.style.height = 'auto';
+                    // Set new height based on content
+                    const newHeight = Math.min(Math.max(this.scrollHeight, 50), 150);
+                    this.style.height = newHeight + 'px';
+                });
+            
+            speechRate.addEventListener('input', (e) => {
+                speechRateValue.value = e.target.value;
+            });
+        }
+        
+        // Setup Web Audio API for visualizer
+        function setupAudioContext() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                
+                // Load voices for speech synthesis
+                if (synth) {
+                    loadVoices();
+                    if (synth.onvoiceschanged !== undefined) {
+                        synth.onvoiceschanged = loadVoices;
+                    }
+                }
+            } catch (e) {
+                console.error('Web Audio API is not supported in this browser');
+            }
+        }
+        
+        // Load available voices
+        function loadVoices() {
+            voices = synth.getVoices();
+            if (voices.length > 0) {
+                // Update voice selector
+                voiceSelector.innerHTML = '';
+                
+                // Filter for Chinese voices or add defaults
+                let chineseVoices = voices.filter(voice => 
+                    voice.lang.includes('zh') || 
+                    voice.name.includes('Chinese') ||
+                    voice.name.includes('Taiwan')
+                );
+                
+                if (chineseVoices.length === 0) {
+                    chineseVoices = voices;
+                }
+                
+                chineseVoices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.textContent = `${voice.name} (${voice.lang})`;
+                    option.setAttribute('data-voice-uri', voice.voiceURI);
+                    option.setAttribute('data-lang', voice.lang);
+                    voiceSelector.appendChild(option);
+                });
+                
+                // If no voices found, add the mock options back
+                if (voiceSelector.options.length === 0) {
+                    const mockOptions = [
+                        {name: '佳佳 (女聲)', value: 'zh-TW-JiaJiaNeural'},
+                        {name: '雲哲 (男聲)', value: 'zh-TW-YunJheNeural'},
+                        {name: '曉辰 (女聲)', value: 'zh-TW-HsiaoChenNeural'},
+                        {name: '曉雨 (女聲)', value: 'zh-TW-HsiaoYuNeural'}
+                    ];
+                    
+                    mockOptions.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.textContent = opt.name;
+                        option.value = opt.value;
+                        voiceSelector.appendChild(option);
+                    });
+                }
+            }
+        }
+        
+        // Handle sending message
+        function handleSendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+            
+            addMessage(message, 'user');
+            userInput.value = '';
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Simulate AI thinking and respond after a delay
+            setTimeout(() => {
+                hideTypingIndicator();
+                const response = getRandomResponse();
+                addMessage(response, 'bot');
+                
+                if (autoPlayTTS) {
+                    speakText(response);
+                }
+            }, 1500);
+        }
+        
+        // Add message to the chat
+        function addMessage(text, sender) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', sender);
+            messageElement.textContent = text;
+            
+            if (sender === 'bot') {
+                const speakButton = document.createElement('button');
+                speakButton.classList.add('secondary');
+                speakButton.style.padding = '0.25rem';
+                speakButton.style.marginLeft = '0.5rem';
+                speakButton.title = '播放語音';
+                speakButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                `;
+                speakButton.addEventListener('click', () => {
+                    speakText(text);
+                });
+                messageElement.appendChild(speakButton);
+            }
+            
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Show typing indicator
+        function showTypingIndicator() {
+            if (isTyping) return;
+            
+            isTyping = true;
+            const typingIndicator = document.createElement('div');
+            typingIndicator.classList.add('typing-indicator');
+            typingIndicator.innerHTML = `
+                <span></span>
+                <span></span>
+                <span></span>
+            `;
+            typingIndicator.id = 'typingIndicator';
+            messagesContainer.appendChild(typingIndicator);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+            isTyping = false;
+        }
+        
+        // Get random response for demo
+        function getRandomResponse() {
+            return sampleResponses[Math.floor(Math.random() * sampleResponses.length)];
+        }
+        
+        // Speak text using Web Speech API
+        function speakText(text) {
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+            }
+            
+            isSpeaking = true;
+            updateVisualizerState(true);
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            // Use the selected voice options
+            utterance.lang = 'zh-TW';
+            utterance.rate = parseFloat(speechRate.value);
+            utterance.volume = parseFloat(volumeControl.value);
+            
+            // Try to set a voice with Taiwanese accent
+            window.speechSynthesis.onvoiceschanged = () => {
+                const voices = window.speechSynthesis.getVoices();
+                // Try to find a Chinese (Taiwan) voice
+                const twVoice = voices.find(voice => 
+                    voice.lang.includes('zh-TW') || 
+                    voice.lang.includes('zh_TW') || 
+                    voice.name.includes('Taiwan') ||
+                    voice.name.includes('Chinese')
+                );
+                if (twVoice) utterance.voice = twVoice;
+            };
+            
+            // Handle speech events
+            utterance.onstart = () => {
+                isSpeaking = true;
+                updateVisualizerState(true);
+            };
+            
+            utterance.onend = () => {
+                isSpeaking = false;
+                updateVisualizerState(false);
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('SpeechSynthesis Error', event);
+                isSpeaking = false;
+                updateVisualizerState(false);
+            };
+            
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        // Test voice
+        function testVoice() {
+            const testText = "您好，這是一個台灣腔的語音測試。我是 AURO AI 助手，很高興為您服務。";
+            speakText(testText);
+        }
+        
+        // Toggle auto TTS
+        function toggleTTS() {
+            autoPlayTTS = !autoPlayTTS;
+            toggleTTSButton.classList.toggle('secondary', !autoPlayTTS);
+            toggleTTSButton.textContent = autoPlayTTS ? '停用自動語音' : '自動播放語音';
+        }
+        
+        // Clear chat
+        function clearChat() {
+            while (messagesContainer.firstChild) {
+                messagesContainer.removeChild(messagesContainer.firstChild);
+            }
+            
+            // Add welcome message back
+            addMessage("您好！我是 AURO AI 助手。我可以幫您解答問題，進行對話以及將文字轉為台灣腔調的語音。請問需要我幫您什麼忙呢？", 'bot');
+        }
+        
+        // Update visualizer state
+        function updateVisualizerState(active) {
+            const bars = audioVisualizer.querySelectorAll('.audio-bar');
+            
+            if (active) {
+                if (!animationFrameId) {
+                    animateVisualizer(bars);
+                }
+            } else {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                
+                bars.forEach(bar => {
+                    bar.style.height = '5px';
+                });
+            }
+        }
+        
+        // Animate visualizer
+        function animateVisualizer(bars) {
+            // Simple animation for demo
+            bars.forEach(bar => {
+                const height = 5 + Math.random() * 35;
+                bar.style.height = height + 'px';
+            });
+            
+            animationFrameId = requestAnimationFrame(() => animateVisualizer(bars));
+        }
+        
+        // Update visualizer
+        function updateVisualizer() {
+            const bars = audioVisualizer.querySelectorAll('.audio-bar');
+            
+            if (isSpeaking) {
+                bars.forEach(bar => {
+                    const height = 5 + Math.random() * 35;
+                    bar.style.height = height + 'px';
+                });
+            } else {
+                bars.forEach(bar => {
+                    bar.style.height = '5px';
+                });
+            }
+            
+            requestAnimationFrame(updateVisualizer);
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', init);
