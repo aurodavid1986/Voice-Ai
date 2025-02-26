@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AURO AI - 台灣語音對話助手</title>
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=qhBUaDyY"></script>
     <style>
         :root {
             --primary-color: #4f46e5;
@@ -845,33 +846,92 @@
             return sampleResponses[Math.floor(Math.random() * sampleResponses.length)];
         }
         
-        // Speak text using Web Speech API
+        // Speak text using ResponsiveVoice (優先) 或 Web Speech API (備用)
         function speakText(text) {
-            if (!window.speechSynthesis) {
-                console.error('Speech synthesis not supported in this browser');
-                alert('您的瀏覽器不支援語音合成功能，請嘗試使用 Chrome 或 Edge 瀏覽器。');
-                return;
-            }
-            
+            // 如果正在播放，先停止
             if (isSpeaking) {
-                window.speechSynthesis.cancel();
+                if (window.responsiveVoice && window.responsiveVoice.isPlaying()) {
+                    window.responsiveVoice.cancel();
+                } else {
+                    window.speechSynthesis.cancel();
+                }
             }
             
+            // 設置為播放狀態並啟動視覺化效果
             isSpeaking = true;
             updateVisualizerState(true);
             
+            // 獲取語音設置
+            const rate = parseFloat(speechRate.value);
+            const volume = parseFloat(volumeControl.value);
+            const selectedVoice = voiceSelector.value;
+            
+            // 嘗試使用 ResponsiveVoice
+            if (window.responsiveVoice) {
+                console.log('使用 ResponsiveVoice 播放語音');
+                
+                // 根據選擇器決定使用哪個語音
+                let voiceToUse = "Chinese Female"; // 預設
+                
+                // 根據選擇的語音值映射到 ResponsiveVoice 的語音
+                if (selectedVoice.includes('男') || selectedVoice.includes('Male') || selectedVoice.includes('YunJhe')) {
+                    voiceToUse = "Chinese Male";
+                } else {
+                    voiceToUse = "Chinese Female";
+                }
+                
+                window.responsiveVoice.speak(text, voiceToUse, {
+                    pitch: 1,
+                    rate: rate,
+                    volume: volume,
+                    onstart: function() {
+                        console.log('ResponsiveVoice 開始播放');
+                        isSpeaking = true;
+                        updateVisualizerState(true);
+                    },
+                    onend: function() {
+                        console.log('ResponsiveVoice 播放結束');
+                        isSpeaking = false;
+                        updateVisualizerState(false);
+                    },
+                    onerror: function(e) {
+                        console.error('ResponsiveVoice 播放錯誤', e);
+                        isSpeaking = false;
+                        updateVisualizerState(false);
+                        
+                        // 如果 ResponsiveVoice 失敗，嘗試使用原生語音 API
+                        tryNativeSpeech(text, rate, volume);
+                    }
+                });
+                return;
+            }
+            
+            // 如果 ResponsiveVoice 不可用，使用原生 Speech API
+            tryNativeSpeech(text, rate, volume);
+        }
+        
+        // 嘗試使用原生 Web Speech API
+        function tryNativeSpeech(text, rate, volume) {
+            if (!window.speechSynthesis) {
+                console.error('語音合成不支援');
+                alert('您的瀏覽器不支援語音功能，請嘗試使用 Chrome 或 Edge 瀏覽器。');
+                isSpeaking = false;
+                updateVisualizerState(false);
+                return;
+            }
+            
+            console.log('使用原生 Web Speech API 播放語音');
+            
             const utterance = new SpeechSynthesisUtterance(text);
-            
-            // Use the selected voice options
             utterance.lang = 'zh-TW';
-            utterance.rate = parseFloat(speechRate.value);
-            utterance.volume = parseFloat(volumeControl.value);
+            utterance.rate = rate;
+            utterance.volume = volume;
             
-            // 獲取當前所有可用語音
+            // 獲取語音列表
             const voices = window.speechSynthesis.getVoices();
             console.log(`嘗試設置語音，當前有 ${voices.length} 個語音可用`);
             
-            // 嘗試根據選擇器設置語音
+            // 語音選擇邏輯 (與原來相同)
             const selectedVoiceName = voiceSelector.value;
             let selectedVoice = null;
             
@@ -912,24 +972,24 @@
                 console.log('沒有可用的語音，使用瀏覽器默認語音');
             }
             
-            // Handle speech events
+            // 處理語音事件
             utterance.onstart = () => {
-                console.log('語音播放開始');
+                console.log('原生語音播放開始');
                 isSpeaking = true;
                 updateVisualizerState(true);
             };
             
             utterance.onend = () => {
-                console.log('語音播放結束');
+                console.log('原生語音播放結束');
                 isSpeaking = false;
                 updateVisualizerState(false);
             };
             
             utterance.onerror = (event) => {
-                console.error('語音合成錯誤', event);
+                console.error('原生語音合成錯誤', event);
                 isSpeaking = false;
                 updateVisualizerState(false);
-                alert('語音播放失敗，請嘗試使用Chrome或Edge瀏覽器');  
+                simFallbackVoice(text); // 使用模擬語音作為最後的備選
             };
             
             try {
@@ -938,32 +998,46 @@
                 console.error('語音合成發生例外:', error);
                 isSpeaking = false;
                 updateVisualizerState(false);
+                simFallbackVoice(text); // 使用模擬語音作為最後的備選
             }
         }
         
-        // Test voice
+        // 模擬語音（最後的備選方案，只有視覺效果）
+        function simFallbackVoice(text) {
+            console.log('使用模擬語音（只有視覺效果）');
+            isSpeaking = true;
+            updateVisualizerState(true);
+            
+            // 根據文本長度計算模擬的語音持續時間 (大約每字100毫秒)
+            const duration = Math.max(2000, text.length * 100);
+            
+            // 顯示通知
+            const notification = document.createElement('div');
+            notification.textContent = '語音功能模擬中（無實際聲音）';
+            notification.style.position = 'fixed';
+            notification.style.bottom = '50px';
+            notification.style.left = '50%';
+            notification.style.transform = 'translateX(-50%)';
+            notification.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            notification.style.color = 'white';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '4px';
+            notification.style.zIndex = '1000';
+            
+            document.body.appendChild(notification);
+            
+            // 模擬語音持續後結束視覺效果
+            setTimeout(() => {
+                isSpeaking = false;
+                updateVisualizerState(false);
+                notification.remove();
+            }, duration);
+        }
+        
+        // 更新測試語音功能
         function testVoice() {
             const testText = "您好，這是一個台灣腔的語音測試。我是 AURO AI 助手，很高興為您服務。";
-            
-            // 檢查語音合成是否可用
-            if (!window.speechSynthesis) {
-                alert('您的瀏覽器不支援語音合成功能，請嘗試使用 Chrome 或 Edge 瀏覽器。');
-                return;
-            }
-            
-            // 如果語音列表為空，嘗試強制載入
-            if (window.speechSynthesis.getVoices().length === 0) {
-                console.log('語音測試：語音列表為空，嘗試強制載入');
-                window.speechSynthesis.cancel(); // 嘗試觸發語音載入
-                
-                // 延遲一下再測試語音，給瀏覽器時間載入語音
-                setTimeout(() => {
-                    console.log('延遲後再次嘗試播放測試語音');
-                    speakText(testText);
-                }, 500);
-            } else {
-                speakText(testText);
-            }
+            speakText(testText);
         }
         
         // Toggle auto TTS
@@ -1047,15 +1121,28 @@
                     voiceInfo += `可用中文語音: ${zhVoices.map(v => v.name).join(', ')}`;
                 }
             }
+
+            // 顯示 ResponsiveVoice 狀態
+            if (window.responsiveVoice) {
+                voiceInfo += `\n\nResponsiveVoice 已載入並可用`;
+                voiceInfo += `\n可用的 ResponsiveVoice 語音: ${window.responsiveVoice.getVoices().join(', ')}`;
+            } else {
+                voiceInfo += `\n\nResponsiveVoice 未載入或不可用`;
+            }
             
             alert(voiceInfo);
             
             // 嘗試基本語音測試
             try {
-                const msg = new SpeechSynthesisUtterance('測試語音');
-                msg.lang = 'zh-TW';
-                window.speechSynthesis.speak(msg);
-                alert('測試語音已啟動，請注意是否有聲音。');
+                if (window.responsiveVoice) {
+                    window.responsiveVoice.speak('ResponsiveVoice 測試語音', 'Chinese Female');
+                    alert('ResponsiveVoice 測試語音已啟動，請注意是否有聲音。');
+                } else {
+                    const msg = new SpeechSynthesisUtterance('原生語音 API 測試');
+                    msg.lang = 'zh-TW';
+                    window.speechSynthesis.speak(msg);
+                    alert('原生語音 API 測試已啟動，請注意是否有聲音。');
+                }
             } catch (e) {
                 alert('語音合成錯誤: ' + e.message);
             }
@@ -1076,3 +1163,6 @@
             debugButton.addEventListener('click', debugVoice);
             document.body.appendChild(debugButton);
         });
+    </script>
+</body>
+</html>
